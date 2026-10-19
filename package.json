@@ -1,0 +1,15 @@
+{
+  "name": "wcg-agentic-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Security-first agentic browser research and kernel prototype",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/agent/task-machine.mjs && node --check src/agent/capability-broker.mjs && node --check tools/benchmark/report.mjs",
+    "benchmark:report": "node tools/benchmark/report.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
