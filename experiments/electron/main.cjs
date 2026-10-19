@@ -3,6 +3,8 @@ const { app, BrowserWindow, WebContentsView, ipcMain, session } = require('elect
 const path = require('node:path');
 const { normalizeNavigation } = require('./navigation.cjs');
 const { AgentController } = require('./agent-controller.cjs');
+const { isTrustedShell } = require('./ipc-policy.cjs');
+const { observeActivePage } = require('./page-observer.cjs');
 const agent = new AgentController();
 let win;
 const tabs = new Map();
@@ -55,17 +57,29 @@ app.whenReady().then(() => {
   win.loadFile(path.join(__dirname, 'shell.html'));
   win.on('resize', layout);
   win.webContents.on('did-finish-load', emitTabs);
-  ipcMain.handle('tabs:list', () => [...tabs].map(([id, t]) => ({ id, url: t.view.webContents.getURL() || t.url, title: t.view.webContents.getTitle() || 'New tab', active: id === activeId })));
-  ipcMain.handle('tabs:new', () => openTab());
-  ipcMain.handle('tabs:activate', (_event, id) => activate(id));
-  ipcMain.handle('tabs:close', (_event, id) => closeTab(id));
-  ipcMain.handle('tabs:navigate', (_event, input) => { const url = normalizeNavigation(input); if (!url) return { ok: false, error: 'Only http(s) navigation is supported' }; const tab = tabs.get(activeId); if (!tab) return { ok: false, error: 'No active tab' }; tab.view.webContents.loadURL(url).catch(err => console.error(err.message)); return { ok: true, url }; });
-  ipcMain.handle('tabs:back', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); });
-  ipcMain.handle('tabs:forward', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); });
-  ipcMain.handle('tabs:reload', () => tabs.get(activeId)?.view.webContents.reload());
-  ipcMain.handle('agent:list', () => agent.list());
-  ipcMain.handle('agent:draft', (_event, intent) => agent.create(intent, { url: tabs.get(activeId)?.view.webContents.getURL() || '' }));
-  ipcMain.handle('agent:dismiss', (_event, id) => agent.dismiss(id));
+  const shellPath = path.join(__dirname, 'shell.html');
+  function register(channel, handler) {
+    ipcMain.handle(channel, (event, ...args) => {
+      if (!isTrustedShell(event, win.webContents.id, shellPath)) throw new Error('Untrusted IPC sender');
+      return handler(...args);
+    });
+  }
+  register('tabs:list', () => [...tabs].map(([id, t]) => ({ id, url: t.view.webContents.getURL() || t.url, title: t.view.webContents.getTitle() || 'New tab', active: id === activeId })));
+  register('tabs:new', () => openTab());
+  register('tabs:activate', (id) => activate(id));
+  register('tabs:close', (id) => closeTab(id));
+  register('tabs:navigate', (input) => { const url = normalizeNavigation(input); if (!url) return { ok: false, error: 'Only http(s) navigation is supported' }; const tab = tabs.get(activeId); if (!tab) return { ok: false, error: 'No active tab' }; tab.view.webContents.loadURL(url).catch(err => console.error(err.message)); return { ok: true, url }; });
+  register('tabs:back', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); });
+  register('tabs:forward', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); });
+  register('tabs:reload', () => tabs.get(activeId)?.view.webContents.reload());
+  register('agent:list', () => agent.list());
+  register('agent:draft', (intent) => agent.create(intent, { url: tabs.get(activeId)?.view.webContents.getURL() || '' }));
+  register('agent:dismiss', (id) => agent.dismiss(id));
+  register('page:observe', async () => {
+    const current = tabs.get(activeId);
+    if (!current) throw new Error('No active tab');
+    return observeActivePage(current.view.webContents);
+  });
   openTab();
 });
 app.on('window-all-closed', () => app.quit());
