@@ -65,3 +65,21 @@ document.getElementById('task-form').addEventListener('submit',async event=>{
   try { await window.wcg.call('agent:draft',intent); document.getElementById('intent').value=''; renderTasks(await window.wcg.call('agent:list')); status.textContent='Draft created. No actions executed.'; }
   catch(err) { status.textContent=err.message; }
 });
+
+const observeButton = document.createElement('button');
+observeButton.type = 'button';
+observeButton.textContent = 'Inspect active page (read only)';
+const observation = document.createElement('pre');
+observation.style.whiteSpace = 'pre-wrap';
+observation.style.overflowWrap = 'anywhere';
+observation.setAttribute('aria-live','polite');
+agentPanel.append(observeButton, observation);
+observeButton.addEventListener('click', async () => {
+  observation.textContent = 'Inspecting page...';
+  try {
+    const snapshot = await window.wcg.call('page:observe');
+    observation.textContent = JSON.stringify(snapshot, null, 2);
+  } catch (error) {
+    observation.textContent = 'Observation failed: ' + error.message;
+  }
+});
