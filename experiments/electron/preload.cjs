@@ -1,6 +1,6 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
-const channels = new Set(['tabs:list','tabs:new','tabs:activate','tabs:close','tabs:navigate','tabs:back','tabs:forward','tabs:reload']);
+const channels = new Set(['tabs:list','tabs:new','tabs:activate','tabs:close','tabs:navigate','tabs:back','tabs:forward','tabs:reload','agent:list','agent:draft','agent:dismiss']);
 contextBridge.exposeInMainWorld('wcg', Object.freeze({
   call: (channel, ...args) => {
     if (!channels.has(channel)) return Promise.reject(new Error('Unsupported command'));
