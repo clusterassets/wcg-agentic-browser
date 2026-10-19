@@ -2,11 +2,14 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, session } = require('electron');
 const path = require('node:path');
 const { normalizeNavigation } = require('./navigation.cjs');
+const { AgentController } = require('./agent-controller.cjs');
+const agent = new AgentController();
 let win;
 const tabs = new Map();
 let activeId = null;
 let sequence = 0;
 const BAR_HEIGHT = 88;
+const AGENT_WIDTH = 320;
 const HOME = 'https://example.com/';
 function emitTabs() {
   if (!win || win.isDestroyed()) return;
@@ -15,7 +18,7 @@ function emitTabs() {
 function layout() {
   if (!win) return;
   const [width, height] = win.getContentSize();
-  for (const [, tab] of tabs) tab.view.setBounds({ x: 0, y: BAR_HEIGHT, width: Math.max(0, width), height: Math.max(0, height - BAR_HEIGHT) });
+  for (const [, tab] of tabs) tab.view.setBounds({ x: 0, y: BAR_HEIGHT, width: Math.max(0, width - AGENT_WIDTH), height: Math.max(0, height - BAR_HEIGHT) });
 }
 function activate(id) {
   if (!tabs.has(id)) return false;
@@ -60,6 +63,9 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:back', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); });
   ipcMain.handle('tabs:forward', () => { const wc = tabs.get(activeId)?.view.webContents; if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); });
   ipcMain.handle('tabs:reload', () => tabs.get(activeId)?.view.webContents.reload());
+  ipcMain.handle('agent:list', () => agent.list());
+  ipcMain.handle('agent:draft', (_event, intent) => agent.create(intent, { url: tabs.get(activeId)?.view.webContents.getURL() || '' }));
+  ipcMain.handle('agent:dismiss', (_event, id) => agent.dismiss(id));
   openTab();
 });
 app.on('window-all-closed', () => app.quit());
