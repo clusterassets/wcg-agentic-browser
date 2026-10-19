@@ -54,6 +54,8 @@ app.whenReady().then(() => {
   session.fromPartition('persist:spike').setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   win = new BrowserWindow({ width: 1100, height: 780, minWidth: 520, minHeight: 320, title: 'WCG Browser Engine Spike', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true } });
   win.removeMenu();
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', event => event.preventDefault());
   win.loadFile(path.join(__dirname, 'shell.html'));
   win.on('resize', layout);
   win.webContents.on('did-finish-load', emitTabs);
