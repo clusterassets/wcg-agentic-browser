@@ -2,6 +2,7 @@
 const tabsEl = document.getElementById('tabs');
 const address = document.getElementById('address');
 const status = document.getElementById('status');
+const tasksEl = document.getElementById('tasks');
 function render(tabs) {
   tabsEl.replaceChildren();
   for (const tab of tabs) {
@@ -13,7 +14,29 @@ function render(tabs) {
     if (tab.active) address.value = tab.url;
   }
 }
+function renderTasks(tasks) {
+  tasksEl.replaceChildren();
+  for (const task of tasks) {
+    const card = document.createElement('section'); card.className='task';
+    const title = document.createElement('h3'); title.textContent = task.intent; card.appendChild(title);
+    const state = document.createElement('p'); state.textContent = 'State: ' + task.state; card.appendChild(state);
+    const list = document.createElement('ol');
+    for (const step of task.steps) { const li=document.createElement('li'); li.textContent=step; list.appendChild(li); }
+    card.appendChild(list);
+    const note=document.createElement('p'); note.className='hint'; note.textContent=task.note; card.appendChild(note);
+    const dismiss=document.createElement('button'); dismiss.type='button'; dismiss.textContent='Dismiss draft';
+    dismiss.addEventListener('click',async()=>{ await window.wcg.call('agent:dismiss',task.id); renderTasks(await window.wcg.call('agent:list')); });
+    card.appendChild(dismiss); tasksEl.appendChild(card);
+  }
+}
 window.wcg.onTabs(render);
 window.wcg.call('tabs:list').then(render);
+window.wcg.call('agent:list').then(renderTasks);
 for (const [id, command] of [['new','tabs:new'],['back','tabs:back'],['forward','tabs:forward'],['reload','tabs:reload']]) document.getElementById(id).addEventListener('click', () => window.wcg.call(command));
 document.getElementById('nav').addEventListener('submit', async event => { event.preventDefault(); const result = await window.wcg.call('tabs:navigate',address.value); status.textContent = result.ok ? '' : result.error; });
+document.getElementById('task-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const intent=document.getElementById('intent').value;
+  try { await window.wcg.call('agent:draft',intent); document.getElementById('intent').value=''; renderTasks(await window.wcg.call('agent:list')); status.textContent='Draft created. No actions executed.'; }
+  catch(err) { status.textContent=err.message; }
+});
